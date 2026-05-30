@@ -1,0 +1,128 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum StudentStatus {
+  active
+  away
+  offline
+}
+
+enum AttendanceStatus {
+  present
+  late
+  excused
+  absent
+}
+
+enum SessionStatus {
+  draft
+  live
+  closed
+}
+
+enum QuestionType {
+  meaning
+  pinyin
+  sentence
+}
+
+enum MaterialType {
+  vocab
+  grammar
+  slide
+  audio
+}
+
+enum RewardRarity {
+  common
+  rare
+  epic
+}
+
+model ClassSession {
+  id               String        @id
+  title            String
+  code             String        @unique
+  level            String
+  date             DateTime
+  durationMinutes  Int
+  status           SessionStatus @default(live)
+  activeMaterialId String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+}
+
+model Student {
+  id           String           @id
+  name         String           @unique
+  level        String
+  focusSeconds Int              @default(0)
+  awaySeconds  Int              @default(0)
+  points       Int              @default(0)
+  status       StudentStatus    @default(offline)
+  attendance   AttendanceStatus @default(absent)
+  badges       String[]         @default([])
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  redemptions  Redemption[]
+  quizAnswers  QuizAnswer[]
+}
+
+model QuizQuestion {
+  id          String       @id
+  type        QuestionType @default(meaning)
+  prompt      String
+  term        String
+  options     String[]
+  answer      String
+  explanation String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  answers     QuizAnswer[]
+}
+
+model Material {
+  id        String       @id
+  type      MaterialType @default(vocab)
+  title     String
+  body      String
+  hint      String
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+}
+
+model RewardItem {
+  id          String       @id
+  name        String
+  cost        Int
+  rarity      RewardRarity @default(common)
+  stock       Int
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  redemptions Redemption[]
+}
+
+model Redemption {
+  id        String     @id
+  studentId String
+  rewardId  String
+  createdAt DateTime   @default(now())
+  student   Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  reward    RewardItem @relation(fields: [rewardId], references: [id], onDelete: Cascade)
+}
+
+model QuizAnswer {
+  id         String       @id
+  studentId  String
+  questionId String
+  selected   String
+  correct    Boolean
+  createdAt  DateTime     @default(now())
+  student    Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  question   QuizQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+}
