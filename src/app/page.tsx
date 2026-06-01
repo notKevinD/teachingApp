@@ -46,6 +46,8 @@ export default function Home() {
   const [role, setRole] = useState<Role>("guest");
   const [teacherTab, setTeacherTab] = useState<TeacherTab>("dashboard");
   const [studentTab, setStudentTab] = useState<StudentTab>("live");
+  const [teacherUsername, setTeacherUsername] = useState("laoshi");
+  const [teacherPassword, setTeacherPassword] = useState("");
   const [studentName, setStudentName] = useState("Kevin");
   const [joinCode, setJoinCode] = useState("LAOSHI-01");
   const [focusSeconds, setFocusSeconds] = useState(0);
@@ -192,16 +194,37 @@ export default function Home() {
     socket?.emit("focus:update", { room: "global", studentId, status });
   }
 
-  function loginTeacher() {
+  async function loginTeacher() {
+    const response = await fetch("/api/auth/teacher-login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: teacherUsername, password: teacherPassword }),
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      setNotice(payload.error ?? "Login guru gagal.");
+      return;
+    }
+    await loadState();
     setRole("teacher");
     setTeacherTab("dashboard");
-    setNotice("Masuk sebagai guru.");
+    setNotice(`Masuk sebagai ${payload.name ?? "guru"}.`);
   }
 
   async function joinClass() {
     const cleanName = studentName.trim() || "Murid";
-    const nextData = await mutate({ action: "join", name: cleanName, code: joinCode.trim().toUpperCase() }, `${cleanName} masuk ke kelas.`);
-    if (!nextData) return;
+    const response = await fetch("/api/auth/student-join", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: cleanName, code: joinCode.trim().toUpperCase() }),
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      setNotice(payload.error ?? "Join class gagal.");
+      return;
+    }
+    setData(payload as AppData);
+    socket?.emit("state:changed", "global");
     setStudentName(cleanName);
     setRole("student");
     setStudentTab("live");
@@ -217,6 +240,7 @@ export default function Home() {
       await syncStudentFocus(currentStudent.id, "offline");
     }
     setRole("guest");
+    await fetch("/api/auth/logout", { method: "POST" });
     setFocusSeconds(0);
     setAwaySeconds(0);
     setAnswers({});
@@ -259,7 +283,18 @@ export default function Home() {
       <aside className="side-panel">
         <Brand />
         {role === "guest" ? (
-          <LoginPanel studentName={studentName} setStudentName={setStudentName} joinCode={joinCode} setJoinCode={setJoinCode} joinClass={joinClass} loginTeacher={loginTeacher} />
+          <LoginPanel
+            teacherUsername={teacherUsername}
+            setTeacherUsername={setTeacherUsername}
+            teacherPassword={teacherPassword}
+            setTeacherPassword={setTeacherPassword}
+            studentName={studentName}
+            setStudentName={setStudentName}
+            joinCode={joinCode}
+            setJoinCode={setJoinCode}
+            joinClass={joinClass}
+            loginTeacher={loginTeacher}
+          />
         ) : (
           <SessionIdentity role={role} studentName={studentName} activeSession={activeSession} logout={logout} />
         )}
@@ -325,13 +360,42 @@ function Brand() {
   );
 }
 
-function LoginPanel({ studentName, setStudentName, joinCode, setJoinCode, joinClass, loginTeacher }: { studentName: string; setStudentName: (value: string) => void; joinCode: string; setJoinCode: (value: string) => void; joinClass: () => void; loginTeacher: () => void }) {
+function LoginPanel({
+  teacherUsername,
+  setTeacherUsername,
+  teacherPassword,
+  setTeacherPassword,
+  studentName,
+  setStudentName,
+  joinCode,
+  setJoinCode,
+  joinClass,
+  loginTeacher,
+}: {
+  teacherUsername: string;
+  setTeacherUsername: (value: string) => void;
+  teacherPassword: string;
+  setTeacherPassword: (value: string) => void;
+  studentName: string;
+  setStudentName: (value: string) => void;
+  joinCode: string;
+  setJoinCode: (value: string) => void;
+  joinClass: () => void;
+  loginTeacher: () => void;
+}) {
   return (
     <div className="login-grid">
       <section className="login-card">
         <LayoutDashboard size={24} />
         <h2>Guru / Admin</h2>
-        <p>Kelola sesi, quiz, materi, reward, absensi, dan laporan kelas.</p>
+        <label>
+          Username
+          <input value={teacherUsername} onChange={(event) => setTeacherUsername(event.target.value)} />
+        </label>
+        <label>
+          Password
+          <input type="password" value={teacherPassword} onChange={(event) => setTeacherPassword(event.target.value)} />
+        </label>
         <button className="primary-button" onClick={loginTeacher}>
           <UsersRound size={18} />
           Login Guru

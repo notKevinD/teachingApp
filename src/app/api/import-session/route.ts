@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { AttendanceStatus, uid } from "@/lib/class-data";
 import { getPrisma } from "@/lib/prisma";
+import { audit } from "@/lib/audit";
+import { rateLimit } from "@/lib/security";
 
 interface ManagementAttendance {
   studentId: string;
@@ -11,12 +14,42 @@ interface ManagementAttendance {
 interface ManagementPayload {
   externalSessionId: string;
   className?: string;
+  classId?: string;
+  teacherName?: string;
+  teacherId?: string;
   levelName?: string;
   date: string;
+  startTime?: string;
+  endTime?: string;
   status: string;
   topic?: string;
+  summary?: string;
+  homework?: string;
+  nextPlan?: string;
   attendance?: ManagementAttendance[];
 }
+
+const payloadSchema = z.object({
+  externalSessionId: z.string().min(1).max(120),
+  className: z.string().max(160).optional(),
+  classId: z.string().max(120).optional(),
+  teacherName: z.string().max(160).optional(),
+  teacherId: z.string().max(120).optional(),
+  levelName: z.string().max(80).optional(),
+  date: z.string().min(1).max(40),
+  startTime: z.string().max(20).optional(),
+  endTime: z.string().max(20).optional(),
+  status: z.string().min(1).max(40),
+  topic: z.string().max(500).optional(),
+  summary: z.string().max(2000).optional(),
+  homework: z.string().max(1000).optional(),
+  nextPlan: z.string().max(1000).optional(),
+  attendance: z.array(z.object({
+    studentId: z.string().min(1).max(120),
+    studentName: z.string().max(160).optional(),
+    status: z.enum(["present", "absent", "excused", "late"]),
+  })).optional(),
+});
 
 function statusFromManagement(status: string) {
   if (status === "completed" || status === "cancelled") return "closed";
@@ -31,6 +64,8 @@ function attendanceToFocus(status: AttendanceStatus) {
 }
 
 export async function POST(request: Request) {
+  const limited = rateLimit(request, "import-session", 60, 60_000);
+  if (limited) return limited;
   const expectedToken = process.env.IMPORT_API_TOKEN;
   const authHeader = request.headers.get("authorization") ?? "";
   const receivedToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
@@ -43,7 +78,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  const payload = (await request.json()) as ManagementPayload;
+  const parsed = payloadSchema.safeParse(await request.json());
+  if (!parsed.success) {
+    return NextResponse.json({ ok: false, error: "Payload tidak valid" }, { status: 400 });
+  }
+  const payload = parsed.data as ManagementPayload;
   if (!payload.externalSessionId || !payload.date) {
     return NextResponse.json({ ok: false, error: "externalSessionId and date are required" }, { status: 400 });
   }
@@ -95,5 +134,11 @@ export async function POST(request: Request) {
     });
   }
 
-  return NextResponse.json({ ok: true, sessionId: payload.externalSessionId, code });
+  await audit("integration.import_session", null, { sessionId: payload.externalSessionId, code });
+  return NextResponse.json({
+    ok: true,
+    sessionId: payload.externalSessionId,
+    code,
+    liveUrl: process.env.PUBLIC_APP_URL ? `${process.env.PUBLIC_APP_URL}?code=${encodeURIComponent(code)}` : undefined,
+  });
 }

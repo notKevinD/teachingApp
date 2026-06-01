@@ -44,6 +44,15 @@ enum RewardRarity {
   epic
 }
 
+model Teacher {
+  id           String   @id
+  username     String   @unique
+  name         String
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
 model ClassSession {
   id               String        @id
   title            String
@@ -125,4 +134,13 @@ model QuizAnswer {
   createdAt  DateTime     @default(now())
   student    Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
   question   QuizQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id        BigInt   @id @default(autoincrement())
+  actorId   String?
+  actorRole String?
+  action    String
+  details   Json     @default("{}")
+  createdAt DateTime @default(now())
 }

@@ -6,6 +6,11 @@ Copy `.env.example` to `.env` and fill the VPS PostgreSQL connection:
 
 ```env
 DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/mandarin_class?schema=public"
+JWT_SECRET="use-a-long-random-secret-minimum-32-characters"
+DEFAULT_TEACHER_USERNAME="laoshi"
+DEFAULT_TEACHER_PASSWORD="replace-this-password"
+IMPORT_API_TOKEN="use-a-different-long-random-secret"
+PUBLIC_APP_URL="https://kelas.example.com"
 PORT=3001
 ```
 
@@ -17,6 +22,26 @@ npm run db:generate
 npm run db:push
 npm run db:seed
 ```
+
+The seed creates the first teacher account from `DEFAULT_TEACHER_USERNAME` and `DEFAULT_TEACHER_PASSWORD`.
+
+Generate secrets with:
+
+```bash
+openssl rand -base64 32
+```
+
+After schema/security updates:
+
+```bash
+npm run db:generate
+npm run db:push
+npm run db:seed
+npm run build
+pm2 restart mandarin-class
+```
+
+Use HTTPS. Keep PostgreSQL bound to localhost/internal network only.
 
 Use `db:push` for the current MVP. When the schema is stable, switch to migration files.
 

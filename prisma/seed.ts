@@ -2,6 +2,7 @@ import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
+import bcrypt from "bcryptjs";
 import { initialData } from "../src/lib/class-data";
 
 if (!process.env.DATABASE_URL) {
@@ -14,6 +15,7 @@ const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
 async function main() {
   await prisma.quizAnswer.deleteMany();
   await prisma.redemption.deleteMany();
+  await prisma.teacher.deleteMany();
   await prisma.rewardItem.deleteMany();
   await prisma.quizQuestion.deleteMany();
   await prisma.material.deleteMany();
@@ -30,6 +32,14 @@ async function main() {
   await prisma.student.createMany({ data: initialData.students });
   await prisma.quizQuestion.createMany({ data: initialData.questions });
   await prisma.rewardItem.createMany({ data: initialData.rewards });
+  await prisma.teacher.create({
+    data: {
+      id: "teacher-default",
+      username: process.env.DEFAULT_TEACHER_USERNAME ?? "laoshi",
+      name: "Laoshi",
+      passwordHash: await bcrypt.hash(process.env.DEFAULT_TEACHER_PASSWORD ?? "change-this-password", 12),
+    },
+  });
 }
 
 main()
